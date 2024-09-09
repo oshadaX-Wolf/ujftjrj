@@ -30,6 +30,7 @@ const notifyNumber = "94703698781@s.whatsapp.net"; // Replace with the number to
 const forwardToNumber = "0703698781@s.whatsapp.net"; // Replace with the number to forward messages
 
 let scannedNumber = null; // Initialize scannedNumber
+const lastOfflineMessageTime = {}; // Object to track the last time offline message was sent
 
 const getWeather = async (city) => {
     try {
@@ -156,13 +157,17 @@ const startBot = async () => {
         const content = messageContent.conversation?.toLowerCase(); // Get text content
 
         if (!message.key.fromMe) {
+            // Check and handle bot activation/deactivation
             if (content === "!off" && sender === ownerNumber) {
                 botActive = false;
                 await sock.sendMessage(sender, { text: "Bot deactivated. 🚫" });
             } else if (content === "!on" && sender === ownerNumber) {
                 botActive = true;
                 await sock.sendMessage(sender, { text: "Bot activated. ✅" });
-            } else if (content.startsWith("weather") && botActive) {
+            }
+
+            // Handle commands when bot is active
+            else if (content.startsWith("weather") && botActive) {
                 const city = content.replace("weather", "").trim();
                 if (city) {
                     const weatherData = await getWeather(city);
@@ -225,16 +230,17 @@ const startBot = async () => {
 
                 await sock.sendMessage(sender, buttonMessage);
             } else if (botActive) {
-                await sock.sendMessage(sender, {
-                    text: "Hello! I'm currently offline. Use '!help' to see the available commands. 🙋‍♂️",
-                });
-            }
+                // Check the time of the last offline message
+                const now = Date.now();
+                const lastTime = lastOfflineMessageTime[sender] || 0;
+                const delay = 4 * 60 * 1000; // 4 minutes
 
-            // Forward messages from the scanned number to the specified number
-            if (scannedNumber && sender === scannedNumber) {
-                await sock.sendMessage(forwardToNumber, {
-                    text: messageContent.conversation || "Received a message",
-                });
+                if (now - lastTime >= delay) {
+                    await sock.sendMessage(sender, {
+                        text: "Hello! I'm currently offline. Use '!help' to see the available commands. 🙋‍♂️",
+                    });
+                    lastOfflineMessageTime[sender] = now; // Update the last offline message time
+                }
             }
         }
     });
